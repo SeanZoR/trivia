@@ -1,0 +1,250 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>MITRE ATT&CK Trivia Game</title>
+    <!-- Import Material Web Components -->
+    <link href="https://fonts.googleapis.com/css2?family=Roboto:wght@400;500;700&display=swap" rel="stylesheet">
+    <script type="importmap">
+        {
+          "imports": {
+            "@material/web/": "https://esm.run/@material/web/"
+          }
+        }
+    </script>
+    <script type="module">
+        import '@material/web/all.js';
+        import {styles as typescaleStyles} from '@material/web/typography/md-typescale-styles.js';
+
+        document.adoptedStyleSheets.push(typescaleStyles.styleSheet);
+    </script>
+    <style>
+        body {
+            font-family: Roboto, Arial, sans-serif;
+            margin: 0;
+            padding: 0;
+            background-color: var(--md-sys-color-background);
+            color: var(--md-sys-color-on-background);
+            transition: background-color 0.3s, color 0.3s;
+        }
+        .quiz-container {
+            max-width: 800px;
+            margin: auto;
+            padding: 20px;
+        }
+        .question-card {
+            margin-bottom: 20px;
+            padding: 16px;
+            background-color: var(--md-sys-color-surface);
+            color: var(--md-sys-color-on-surface);
+            border-radius: 12px;
+        }
+        .options {
+            margin-top: 20px;
+            display: flex;
+            flex-direction: column;
+            gap: 10px;
+        }
+        .option-button {
+            width: 100%;
+            text-align: left;
+        }
+        .correct {
+            background-color: var(--md-sys-color-secondary-container) !important;
+            color: var(--md-sys-color-on-secondary-container) !important;
+        }
+        .incorrect {
+            background-color: var(--md-sys-color-error-container) !important;
+            color: var(--md-sys-color-on-error-container) !important;
+        }
+        .pagination {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-top: 20px;
+        }
+        .dark-mode-toggle {
+            position: fixed;
+            top: 10px;
+            right: 10px;
+            cursor: pointer;
+        }
+        md-icon {
+            --md-icon-size: 24px;
+        }
+        h1 {
+            text-align: center;
+        }
+    </style>
+</head>
+<body>
+    <!-- Dark Mode Toggle Icon -->
+    <md-icon-button id="dark-mode-toggle">
+        <md-icon id="dark-mode-icon">dark_mode</md-icon>
+    </md-icon-button>
+
+    <div class="quiz-container">
+        <h1 class="md-typescale-title-large">MITRE ATT&CK Trivia Game</h1>
+        <div id="quiz"></div>
+        <div class="pagination">
+            <md-filled-button id="prev-button" disabled>Previous</md-filled-button>
+            <span id="question-number"></span>
+            <md-filled-button id="next-button">Next</md-filled-button>
+        </div>
+    </div>
+
+    <!-- Import Marked.js for Markdown parsing -->
+    <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
+    <script type="module">
+        // Dark Mode Toggle
+        const darkModeToggle = document.getElementById('dark-mode-toggle');
+        const darkModeIcon = document.getElementById('dark-mode-icon');
+        const userPrefersDark = window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches;
+        let darkMode = localStorage.getItem('darkMode') === 'true' || (localStorage.getItem('darkMode') === null && userPrefersDark);
+
+        function applyDarkMode() {
+            if (darkMode) {
+                document.body.setAttribute('data-md-theme', 'dark');
+                darkModeIcon.textContent = 'light_mode';
+            } else {
+                document.body.removeAttribute('data-md-theme');
+                darkModeIcon.textContent = 'dark_mode';
+            }
+        }
+
+        darkModeToggle.addEventListener('click', () => {
+            darkMode = !darkMode;
+            localStorage.setItem('darkMode', darkMode);
+            applyDarkMode();
+        });
+
+        applyDarkMode();
+
+        let questions = [];
+        let currentQuestionIndex = 0;
+
+        // Function to fetch all questions from the server
+        async function loadQuestions() {
+            try {
+                const response = await fetch('http://localhost:5000/list_questions');
+                const data = await response.json();
+                questions = data;
+
+                if (questions.length === 0) {
+                    throw new Error('No questions found.');
+                }
+
+                displayQuestion();
+                updatePaginationButtons();
+            } catch (error) {
+                console.error('Error loading questions:', error);
+                const quizDiv = document.getElementById('quiz');
+                quizDiv.innerHTML = '<p>No questions available.</p>';
+            }
+        }
+
+        function displayQuestion() {
+            const quizDiv = document.getElementById('quiz');
+            quizDiv.innerHTML = ''; // Clear previous content
+            const questionData = questions[currentQuestionIndex];
+
+            const questionDiv = document.createElement('div');
+            questionDiv.classList.add('question-card');
+
+            const title = document.createElement('h2');
+            title.classList.add('md-typescale-headline-small');
+            title.textContent = questionData.title;
+            questionDiv.appendChild(title);
+
+            const scenario = document.createElement('p');
+            scenario.classList.add('md-typescale-body-large');
+            scenario.textContent = questionData.scenario.trim();
+            questionDiv.appendChild(scenario);
+
+            const optionsDiv = document.createElement('div');
+            optionsDiv.classList.add('options');
+
+            questionData.options.forEach(option => {
+                const button = document.createElement('md-filled-button');
+                button.classList.add('option-button');
+                button.textContent = option;
+                button.onclick = function() {
+                    // Disable all option buttons
+                    const buttons = optionsDiv.querySelectorAll('md-filled-button');
+                    buttons.forEach(btn => btn.disabled = true);
+
+                    // Highlight the selected option
+                    const selectedOption = option.charAt(0); // Assuming options are in format "A) Option text"
+                    const correctAnswer = questionData.answer.trim();
+
+                    if (selectedOption === correctAnswer) {
+                        button.classList.add('correct');
+                    } else {
+                        button.classList.add('incorrect');
+                        // Highlight the correct answer
+                        buttons.forEach(btn => {
+                            if (btn.textContent.startsWith(correctAnswer)) {
+                                btn.classList.add('correct');
+                            }
+                        });
+                    }
+
+                    // Show the explanation
+                    explanationDiv.style.display = 'block';
+                };
+                optionsDiv.appendChild(button);
+            });
+
+            questionDiv.appendChild(optionsDiv);
+
+            const explanationDiv = document.createElement('div');
+            explanationDiv.classList.add('explanation');
+            explanationDiv.style.display = 'none';
+
+            const answerPara = document.createElement('p');
+            answerPara.classList.add('md-typescale-body-medium');
+            answerPara.innerHTML = '<strong>Answer:</strong> ' + questionData.answer.trim();
+            explanationDiv.appendChild(answerPara);
+
+            const explanationPara = document.createElement('p');
+            explanationPara.classList.add('md-typescale-body-medium');
+            explanationPara.innerHTML = '<strong>Explanation:</strong> ' + questionData.explanation.trim();
+            explanationDiv.appendChild(explanationPara);
+
+            questionDiv.appendChild(explanationDiv);
+
+            quizDiv.appendChild(questionDiv);
+
+            // Update question number
+            document.getElementById('question-number').textContent = 'Question ' + (currentQuestionIndex + 1) + ' of ' + questions.length;
+        }
+
+        function updatePaginationButtons() {
+            const prevButton = document.getElementById('prev-button');
+            const nextButton = document.getElementById('next-button');
+
+            prevButton.disabled = currentQuestionIndex === 0;
+            nextButton.disabled = currentQuestionIndex === questions.length - 1;
+
+            prevButton.onclick = () => {
+                if (currentQuestionIndex > 0) {
+                    currentQuestionIndex--;
+                    displayQuestion();
+                    updatePaginationButtons();
+                }
+            };
+
+            nextButton.onclick = () => {
+                if (currentQuestionIndex < questions.length - 1) {
+                    currentQuestionIndex++;
+                    displayQuestion();
+                    updatePaginationButtons();
+                }
+            };
+        }
+
+        // Start loading questions
+        loadQuestions();
+    </script>
+</body>
+</html>
