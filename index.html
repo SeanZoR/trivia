@@ -5,6 +5,8 @@
     <title>MITRE ATT&CK Trivia Game</title>
     <!-- Import Material Web Components -->
     <link href="https://fonts.googleapis.com/css2?family=Roboto:wght@400;500;700&display=swap" rel="stylesheet">
+    <!-- Import Material Symbols for Icons -->
+    <link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined" rel="stylesheet">
     <script type="importmap">
         {
           "imports": {
@@ -38,6 +40,7 @@
             background-color: var(--md-sys-color-surface);
             color: var(--md-sys-color-on-surface);
             border-radius: 12px;
+            transition: background-color 0.3s, color 0.3s;
         }
         .options {
             margin-top: 20px;
@@ -48,14 +51,16 @@
         .option-button {
             width: 100%;
             text-align: left;
+            transition: background-color 0.3s, color 0.3s;
+        }
+        .option-button:hover {
+            background-color: rgba(0, 0, 0, 0.05);
         }
         .correct {
-            background-color: var(--md-sys-color-secondary-container) !important;
-            color: var(--md-sys-color-on-secondary-container) !important;
+            animation: correctAnswer 0.5s forwards;
         }
         .incorrect {
-            background-color: var(--md-sys-color-error-container) !important;
-            color: var(--md-sys-color-on-error-container) !important;
+            animation: incorrectAnswer 0.5s forwards;
         }
         .pagination {
             display: flex;
@@ -70,10 +75,87 @@
             cursor: pointer;
         }
         md-icon {
-            --md-icon-size: 24px;
+            font-family: 'Material Symbols Outlined';
+            font-size: 24px;
+            font-weight: normal;
+            font-style: normal;
+            display: inline-block;
+            line-height: 1;
+            text-transform: none;
+            letter-spacing: normal;
+            word-wrap: normal;
+            white-space: nowrap;
+            direction: ltr;
+            -webkit-font-feature-settings: 'liga';
+            -webkit-font-smoothing: antialiased;
         }
         h1 {
             text-align: center;
+        }
+        #question-number {
+            color: gray;
+        }
+        .md-typescale-body-large, .md-typescale-body-medium {
+            font-size: 1.1em;
+        }
+        /* Dark Mode Styles */
+        body.dark-mode {
+            background-color: #121212;
+            color: #FFFFFF;
+        }
+        body.dark-mode .question-card {
+            background-color: #1E1E1E;
+            color: #FFFFFF;
+        }
+        body.dark-mode .option-button {
+            background-color: #1E1E1E;
+            color: #FFFFFF;
+        }
+        body.dark-mode .option-button[disabled] {
+            color: #FFFFFF !important;
+        }
+        body.dark-mode md-icon-button {
+            color: #FFFFFF;
+        }
+        body.dark-mode .option-button:hover {
+            background-color: rgba(255, 255, 255, 0.1);
+        }
+        body.dark-mode md-filled-button {
+            color: #FFFFFF;
+            background-color: #1E1E1E;
+        }
+        body.dark-mode md-filled-button:disabled {
+            color: #888888;
+        }
+        body.dark-mode #question-number {
+            color: #CCCCCC;
+        }
+        body.dark-mode .correct {
+            animation: correctAnswerDark 0.5s forwards;
+        }
+        body.dark-mode .incorrect {
+            animation: incorrectAnswerDark 0.5s forwards;
+        }
+        /* Animations */
+        @keyframes correctAnswer {
+            from { background-color: var(--md-sys-color-surface); color: var(--md-sys-color-on-surface); }
+            to { background-color: #C8E6C9; color: #1B5E20; }
+        }
+        @keyframes incorrectAnswer {
+            from { background-color: var(--md-sys-color-surface); color: var(--md-sys-color-on-surface); }
+            to { background-color: #FFCDD2; color: #B71C1C; }
+        }
+        @keyframes correctAnswerDark {
+            from { background-color: #1E1E1E; color: #FFFFFF; }
+            to { background-color: #388E3C; color: #FFFFFF; }
+        }
+        @keyframes incorrectAnswerDark {
+            from { background-color: #1E1E1E; color: #FFFFFF; }
+            to { background-color: #D32F2F; color: #FFFFFF; }
+        }
+        /* Underline Shortcut Keys */
+        .underline-shortcut {
+            text-decoration: underline;
         }
     </style>
 </head>
@@ -87,9 +169,17 @@
         <h1 class="md-typescale-title-large">MITRE ATT&CK Trivia Game</h1>
         <div id="quiz"></div>
         <div class="pagination">
-            <md-filled-button id="prev-button" disabled>Previous</md-filled-button>
+            <md-filled-button id="prev-button" disabled>
+                <span>
+                    <span class="underline-shortcut">P</span>revious
+                </span>
+            </md-filled-button>
             <span id="question-number"></span>
-            <md-filled-button id="next-button">Next</md-filled-button>
+            <md-filled-button id="next-button">
+                <span>
+                    <span class="underline-shortcut">N</span>ext
+                </span>
+            </md-filled-button>
         </div>
     </div>
 
@@ -104,10 +194,10 @@
 
         function applyDarkMode() {
             if (darkMode) {
-                document.body.setAttribute('data-md-theme', 'dark');
+                document.body.classList.add('dark-mode');
                 darkModeIcon.textContent = 'light_mode';
             } else {
-                document.body.removeAttribute('data-md-theme');
+                document.body.classList.remove('dark-mode');
                 darkModeIcon.textContent = 'dark_mode';
             }
         }
@@ -122,11 +212,12 @@
 
         let questions = [];
         let currentQuestionIndex = 0;
+        let optionButtons = [];
 
         // Function to fetch all questions from the server
         async function loadQuestions() {
             try {
-                const response = await fetch('http://localhost:5000/list_questions');
+                const response = await fetch('http://localhost:5001/list_questions');
                 const data = await response.json();
                 questions = data;
 
@@ -136,6 +227,7 @@
 
                 displayQuestion();
                 updatePaginationButtons();
+                setupKeyboardListeners();
             } catch (error) {
                 console.error('Error loading questions:', error);
                 const quizDiv = document.getElementById('quiz');
@@ -153,46 +245,33 @@
 
             const title = document.createElement('h2');
             title.classList.add('md-typescale-headline-small');
-            title.textContent = questionData.title;
+            title.innerHTML = marked.parseInline(questionData.title);
             questionDiv.appendChild(title);
 
             const scenario = document.createElement('p');
             scenario.classList.add('md-typescale-body-large');
-            scenario.textContent = questionData.scenario.trim();
+            scenario.innerHTML = marked.parse(questionData.scenario.trim());
             questionDiv.appendChild(scenario);
 
             const optionsDiv = document.createElement('div');
             optionsDiv.classList.add('options');
 
+            optionButtons = [];
+
             questionData.options.forEach(option => {
                 const button = document.createElement('md-filled-button');
                 button.classList.add('option-button');
-                button.textContent = option;
+                // Underline the first character (A, B, C, D)
+                const optionText = option;
+                const firstChar = option.charAt(0);
+                const restText = option.slice(1);
+                button.innerHTML = '<span><span class="underline-shortcut">' + firstChar + '</span>' + restText + '</span>';
+                button.dataset.option = firstChar; // Store the option letter
                 button.onclick = function() {
-                    // Disable all option buttons
-                    const buttons = optionsDiv.querySelectorAll('md-filled-button');
-                    buttons.forEach(btn => btn.disabled = true);
-
-                    // Highlight the selected option
-                    const selectedOption = option.charAt(0); // Assuming options are in format "A) Option text"
-                    const correctAnswer = questionData.answer.trim();
-
-                    if (selectedOption === correctAnswer) {
-                        button.classList.add('correct');
-                    } else {
-                        button.classList.add('incorrect');
-                        // Highlight the correct answer
-                        buttons.forEach(btn => {
-                            if (btn.textContent.startsWith(correctAnswer)) {
-                                btn.classList.add('correct');
-                            }
-                        });
-                    }
-
-                    // Show the explanation
-                    explanationDiv.style.display = 'block';
+                    handleOptionSelection(button, questionData);
                 };
                 optionsDiv.appendChild(button);
+                optionButtons.push(button);
             });
 
             questionDiv.appendChild(optionsDiv);
@@ -200,15 +279,20 @@
             const explanationDiv = document.createElement('div');
             explanationDiv.classList.add('explanation');
             explanationDiv.style.display = 'none';
+            explanationDiv.style.height = '0';
+            explanationDiv.style.overflow = 'hidden';
+            explanationDiv.style.transition = 'height 0.5s ease';
 
             const answerPara = document.createElement('p');
             answerPara.classList.add('md-typescale-body-medium');
-            answerPara.innerHTML = '<strong>Answer:</strong> ' + questionData.answer.trim();
+            answerPara.innerHTML = '<strong>Answer:</strong> ' + marked.parseInline(questionData.answer.trim());
             explanationDiv.appendChild(answerPara);
 
-            const explanationPara = document.createElement('p');
+            const explanationPara = document.createElement('div'); // Changed to 'div' for better markdown rendering
             explanationPara.classList.add('md-typescale-body-medium');
-            explanationPara.innerHTML = '<strong>Explanation:</strong> ' + questionData.explanation.trim();
+            // Replace escaped newlines with actual newlines
+            let explanationText = questionData.explanation.trim().replace(/\\n/g, '\n');
+            explanationPara.innerHTML = '<strong>Explanation:</strong> ' + marked.parse(explanationText);
             explanationDiv.appendChild(explanationPara);
 
             questionDiv.appendChild(explanationDiv);
@@ -217,6 +301,36 @@
 
             // Update question number
             document.getElementById('question-number').textContent = 'Question ' + (currentQuestionIndex + 1) + ' of ' + questions.length;
+        }
+
+        function handleOptionSelection(selectedButton, questionData) {
+            // Disable all option buttons
+            optionButtons.forEach(btn => btn.disabled = true);
+
+            // Highlight the selected option
+            const selectedOption = selectedButton.dataset.option; // Get the option letter
+            const correctAnswer = questionData.answer.trim();
+
+            if (selectedOption.toUpperCase() === correctAnswer.toUpperCase()) {
+                selectedButton.classList.add('correct');
+            } else {
+                selectedButton.classList.add('incorrect');
+                // Highlight the correct answer and dim others
+                optionButtons.forEach(btn => {
+                    if (btn.dataset.option.toUpperCase() === correctAnswer.toUpperCase()) {
+                        btn.classList.add('correct');
+                    } else if (!btn.classList.contains('incorrect')) {
+                        // Ensure other options are visible
+                        btn.style.opacity = '0.7';
+                    }
+                });
+            }
+
+            // Show the explanation with animation
+            const explanationDiv = document.querySelector('.explanation');
+            explanationDiv.style.display = 'block';
+            const contentHeight = explanationDiv.scrollHeight + 'px';
+            explanationDiv.style.height = contentHeight;
         }
 
         function updatePaginationButtons() {
@@ -241,6 +355,31 @@
                     updatePaginationButtons();
                 }
             };
+        }
+
+        function setupKeyboardListeners() {
+            document.addEventListener('keydown', keydownListener);
+        }
+
+        function keydownListener(event) {
+            const key = event.key.toUpperCase();
+
+            // Handle answer selection (A, B, C, D)
+            if (['A', 'B', 'C', 'D'].includes(key)) {
+                // Find the button with the corresponding option
+                const button = optionButtons.find(btn => btn.dataset.option.toUpperCase() === key);
+                if (button && !button.disabled) {
+                    handleOptionSelection(button, questions[currentQuestionIndex]);
+                }
+            }
+
+            // Handle pagination (P for Previous, N for Next)
+            if (key === 'P') {
+                document.getElementById('prev-button').click();
+            }
+            if (key === 'N') {
+                document.getElementById('next-button').click();
+            }
         }
 
         // Start loading questions
